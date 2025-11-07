@@ -73,8 +73,14 @@ class PhysicalEntity:
 
         self.animation.update()
 
-    def render(self, surf, offset=(0, 0)):#
-        surf.blit(pygame.transform.flip(self.animation.img(), self.flip, False), (self.pos[0] - offset[0] + self.anim_offset[0], self.pos[1] - offset[1] + self.anim_offset[1]))
+    def render(self, surf, offset=(0, 0)):
+        y_offset = self.anim_offset[1]
+        if self.action == 'run':
+            y_offset -= 4  
+        surf.blit(
+            pygame.transform.flip(self.animation.img(), self.flip, False),
+            (self.pos[0] - offset[0] + self.anim_offset[0], self.pos[1] - offset[1] + y_offset)
+        )
 
 class Enemy(PhysicalEntity):
     def __init__(self, game, pos, size):
@@ -127,12 +133,19 @@ class Enemy(PhysicalEntity):
                 return True
 
     def render(self, surf, offset=(0, 0)):
-        super().render(surf, offset=offset)
+        y_extra = 5 if self.action == 'run' else 4
+        super().render(surf, offset=(offset[0], offset[1] - y_extra))
 
         if self.flip:
-            surf.blit(pygame.transform.flip(self.game.assets['gun'], True, False), (self.rect().centerx - 4 - self.game.assets['gun'].get_width()- offset[0], self.rect().centery - offset[1]))
+            surf.blit(
+                pygame.transform.flip(self.game.assets['gun'], True, False),
+                (self.rect().centerx - 4 - self.game.assets['gun'].get_width() - offset[0], self.rect().centery - offset[1] + y_extra - 2)
+            )
         else:
-            surf.blit(self.game.assets['gun'], (self.rect().centerx + 4 - offset[0], self.rect().centery - offset[1]))
+            surf.blit(
+                self.game.assets['gun'],
+                (self.rect().centerx + 4 - offset[0], self.rect().centery - offset[1] + y_extra - 2)
+            )
 
 class Player(PhysicalEntity):
     def __init__(self, game, pos, size):

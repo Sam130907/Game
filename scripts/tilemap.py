@@ -98,8 +98,8 @@ class Tilemap:
         for tile in self.offgrid_tiles:
             surf.blit(self.game.assets[tile['type']][tile['variant']], (tile['pos'][0] - offset[0], tile['pos'][1] - offset[1]))
 
-                # ...existing code...
-        render_margin = 2  # Number of extra tiles to render around the visible area
+
+        render_margin = 2  
 
         for x in range(
             (offset[0] // self.tile_size) - render_margin,
@@ -116,4 +116,3 @@ class Tilemap:
                         self.game.assets[tile['type']][tile['variant']],
                         (tile['pos'][0] * self.tile_size - offset[0], tile['pos'][1] * self.tile_size - offset[1])
                     )
-        # ...existing code...

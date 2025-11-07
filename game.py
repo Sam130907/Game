@@ -11,6 +11,7 @@ from scripts.tilemap import Tilemap
 from scripts.clouds import Clouds
 from scripts.particle import Particle
 from scripts.spark import Spark
+from scripts.menu import show_title_screen, show_pause_menu
 
 class Game:
     def __init__(self): 
@@ -52,6 +53,7 @@ class Game:
             'gun' : load_image('gun.png'),
             'projectile' : load_image('projectile.png'),
             'tutorial_text' : load_images('tiles/tutorial_text'),
+            'finish_decor' : load_images('tiles/finish_decor'),
         }
 
         self.clouds = Clouds(self.assets['clouds'], count=16)
@@ -61,9 +63,13 @@ class Game:
         self.tilemap = Tilemap(self, tile_size=16)
         
         self.level = 0
-        self.load_level(0)
 
         self.screenshake = 0 
+
+        self.load_level(6)
+        self.transition = 0
+
+        show_title_screen(self)
 
     def load_level(self, map_id):
         self.tilemap.load('data/maps/' + str(map_id) + '.json')
@@ -78,8 +84,21 @@ class Game:
                 self.player.pos = spawner['pos']
                 self.player.air_time = 0
             else:
-                self.enemies.append(Enemy(self, spawner['pos'], (8, 15)))
 
+                bx, by = spawner['pos']
+                n = getattr(self, 'enemies_per_spawner', 5)
+                cols = min(10, max(1, int(math.sqrt(n))))  
+                spacing_x = 14
+                spacing_y = 18
+                start_x = bx - (cols - 1) * spacing_x / 2
+                start_y = by    
+                for i in range(n):
+                    r = i // cols
+                    c = i % cols
+                    x = start_x + c * spacing_x + random.uniform(-2, 2)
+                    y = start_y + r * spacing_y + random.uniform(-2, 2)
+                    self.enemies.append(Enemy(self, (x, y), (8, 15)))
+        
         self.projectiles = []
         self.particles = []
         self.sparks = []
@@ -138,6 +157,8 @@ class Game:
                 projectile[0][0] += projectile[1]
                 projectile[2] +=1
                 img = self.assets['projectile']
+                if projectile[1] > 0:  
+                    img = pygame.transform.flip(img, True, False)
                 self.display.blit(img, (projectile[0][0] - img.get_width() / 2 - render_scroll[0], projectile[0][1] - img.get_height() / 2 - render_scroll[1]))
                 if self.tilemap.solid_check(projectile[0]):
                     self.projectiles.remove(projectile)
@@ -190,11 +211,164 @@ class Game:
                         self.player.dash()
                     if event.key == pygame.K_e:
                         self.player.attack()
+                    if event.key == pygame.K_p:
+                        show_pause_menu(self)
+                    if event.key == pygame.K_g and self.level == 6:  # Check if final level
+                        # Show end game message
+                        title_font = pygame.font.SysFont(None, 64)
+                        credit_font = pygame.font.SysFont(None, 36)
+                        
+                        # Create text surfaces
+                        thank_you = title_font.render("Thank you for playing", True, (255, 255, 255))
+                        credits = credit_font.render("Game made by Sam", True, (255, 255, 255))
+                        
+                        # Animation for text dropping from top (not as far down)
+                        start_y = -100
+                        end_y = 80  # Reduced from screen.get_height() // 3
+                        credit_y = self.screen.get_height() - 80  # Fixed bottom position
+                        
+                        for i in range(60):  # 1 second animation
+                            # Calculate current text position
+                            current_y = start_y + (end_y - start_y) * (i / 60)
+                            
+                            # Let the game update normally
+                            if not self.dead:
+                                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
+                            for enemy in self.enemies.copy():
+                                kill = enemy.update(self.tilemap, (0, 0))
+                                if kill:
+                                    self.enemies.remove(enemy)
+                            
+                            # Normal game rendering
+                            self.display.fill((0, 0, 0, 0))
+                            self.display_2.blit(self.assets['background'], (0, 0))
+                            self.clouds.update()
+                            self.clouds.render(self.display_2, offset=render_scroll)
+                            self.tilemap.render(self.display, offset=render_scroll)
+                            
+                            for enemy in self.enemies.copy():
+                                enemy.render(self.display, offset=render_scroll)
+                            self.player.render(self.display, offset=render_scroll)
+                            
+                            for particle in self.particles:
+                                particle.render(self.display, offset=render_scroll)
+                            for spark in self.sparks:
+                                spark.render(self.display, offset=render_scroll)
+                            
+                            self.display_2.blit(self.display, (0, 0))
+                            scaled = pygame.transform.scale(self.display_2, self.screen.get_size())
+                            self.screen.blit(scaled, (0, 0))
+                            
+                            # Draw text with drop shadow
+                            shadow_offset = 2
+                            thank_x = (self.screen.get_width() - thank_you.get_width()) // 2
+                            credit_x = (self.screen.get_width() - credits.get_width()) // 2
+                            
+                            # Draw shadows
+                            self.screen.blit(thank_you, (thank_x + shadow_offset, current_y + shadow_offset))
+                            self.screen.blit(credits, (credit_x + shadow_offset, credit_y + shadow_offset))
+                            
+                            # Draw text
+                            self.screen.blit(thank_you, (thank_x, current_y))
+                            self.screen.blit(credits, (credit_x, credit_y))
+                            
+                            pygame.display.flip()
+                            self.clock.tick(60)
+                        
+                        # Keep showing text for 3 seconds while game continues
+                        start_time = pygame.time.get_ticks()
+                        while pygame.time.get_ticks() - start_time < 3000:
+                            # Let the game update normally
+                            if not self.dead:
+                                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
+                            for enemy in self.enemies.copy():
+                                kill = enemy.update(self.tilemap, (0, 0))
+                                if kill:
+                                    self.enemies.remove(enemy)
+                            
+                            # Normal game rendering
+                            self.display.fill((0, 0, 0, 0))
+                            self.display_2.blit(self.assets['background'], (0, 0))
+                            self.clouds.update()
+                            self.clouds.render(self.display_2, offset=render_scroll)
+                            self.tilemap.render(self.display, offset=render_scroll)
+                            
+                            for enemy in self.enemies.copy():
+                                enemy.render(self.display, offset=render_scroll)
+                            self.player.render(self.display, offset=render_scroll)
+                            
+                            for particle in self.particles:
+                                particle.render(self.display, offset=render_scroll)
+                            for spark in self.sparks:
+                                spark.render(self.display, offset=render_scroll)
+                            
+                            self.display_2.blit(self.display, (0, 0))
+                            scaled = pygame.transform.scale(self.display_2, self.screen.get_size())
+                            self.screen.blit(scaled, (0, 0))
+                            
+                            # Keep showing text at final positions
+                            self.screen.blit(thank_you, (thank_x + shadow_offset, end_y + shadow_offset))
+                            self.screen.blit(credits, (credit_x + shadow_offset, credit_y + shadow_offset))
+                            self.screen.blit(thank_you, (thank_x, end_y))
+                            self.screen.blit(credits, (credit_x, credit_y))
+                            
+                            pygame.display.flip()
+                            self.clock.tick(60)
+
+                        # sync movement to actual keyboard state after unpausing
+                        keys = pygame.key.get_pressed()
+                        self.movement[0] = bool(keys[pygame.K_LEFT])
+                        self.movement[1] = bool(keys[pygame.K_RIGHT])
+                        if not self.movement[0] and not self.movement[1]:
+                            if hasattr(self.player, 'vel'):
+                                try:
+                                    if isinstance(self.player.vel, list):
+                                        self.player.vel[0] = 0
+                                    elif isinstance(self.player.vel, tuple):
+                                        self.player.vel = (0,) + tuple(self.player.vel[1:])
+                                except Exception:
+                                    pass
+                            if hasattr(self.player, 'vx'):
+                                try:
+                                    self.player.vx = 0
+                                except Exception:
+                                    pass
+
+
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT:
                         self.movement[0] = False
+
+                        if not self.movement[1]:
+                            if hasattr(self.player, 'vel'):
+                                try:
+                                    if isinstance(self.player.vel, list):
+                                        self.player.vel[0] = 0
+                                    elif isinstance(self.player.vel, tuple):
+                                        self.player.vel = (0,) + tuple(self.player.vel[1:])
+                                except Exception:
+                                    pass
+                            if hasattr(self.player, 'vx'):
+                                try:
+                                    self.player.vx = 0
+                                except Exception:
+                                    pass
                     if event.key == pygame.K_RIGHT:
                         self.movement[1] = False
+                        if not self.movement[0]:
+                            if hasattr(self.player, 'vel'):
+                                try:
+                                    if isinstance(self.player.vel, list):
+                                        self.player.vel[0] = 0
+                                    elif isinstance(self.player.vel, tuple):
+                                        self.player.vel = (0,) + tuple(self.player.vel[1:])
+                                except Exception:
+                                    pass
+                            if hasattr(self.player, 'vx'):
+                                try:
+                                    self.player.vx = 0
+                                except Exception:
+                                    pass
 
             if self.transition:
                 transition_surf = pygame.Surface(self.display.get_size())
@@ -209,4 +383,4 @@ class Game:
             pygame.display.update()
             self.clock.tick(60)
 
-Game().run() 
+Game().run()

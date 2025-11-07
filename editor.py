@@ -30,6 +30,7 @@ class Editor:
             'dungeon' : load_images('tiles/dungeon'),
             'dungeon_decor' : load_images('tiles/dungeon_decor'),
             'spawners' : load_images('tiles/spawners'),
+            'finish_decor' : load_images('tiles/finish_decor'),
         }
 
         self.movement = [False, False, False, False]
@@ -37,7 +38,7 @@ class Editor:
         self.tilemap = Tilemap(self, tile_size=16)
 
         try:
-            self.tilemap.load('Data/maps/0.json')
+            self.tilemap.load('Data/maps/6.json')
         except FileNotFoundError:
             pass
 
@@ -132,7 +133,7 @@ class Editor:
                     if event.key == pygame.K_t:
                         self.tilemap.autotile()
                     if event.key == pygame.K_o:
-                        self.tilemap.save('Data/maps/0.json')
+                        self.tilemap.save('Data/maps/6.json')
                     if event.key == pygame.K_LSHIFT:
                         self.shift = True                       
                 if event.type == pygame.KEYUP:
