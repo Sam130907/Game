@@ -87,8 +87,8 @@ def show_title_screen(game):
                     pygame.display.flip()
                     
 
-                    game.level = 6
-                    game.load_level(6)
+                    game.level = 0
+                    game.load_level(0)
                     
 
                     for _ in range(60):

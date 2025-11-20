@@ -157,7 +157,12 @@ class Player(PhysicalEntity):
         self.attacking = 0
 
     def update(self, tilemap, movement=(0, 0)):
+        
+        if self.game.powered_up:
+            movement = (movement[0] * 1.5, movement[1])
+
         super().update(tilemap, movement=movement)
+
 
         self.air_time += 1
 
@@ -225,19 +230,19 @@ class Player(PhysicalEntity):
         if self.wall_slide:
             if self.flip and self.last_movement[0] < 0:
                 self.velocity[0] = 3.5
-                self.velocity[1] = -2.5
+                self.velocity[1] = -2.5 * (1.125 if self.game.powered_up else 1.0)  # 1.5x wall jump
                 self.air_time = 5
                 self.jumps = max(0, self.jumps - 1)
                 return True
             elif not self.flip and self.last_movement[0] > 0:
                 self.velocity[0] = -3.5
-                self.velocity[1] = -2.5
+                self.velocity[1] = -2.5 * (1.125 if self.game.powered_up else 1.0)  # 1.5x wall jump
                 self.air_time = 5
                 self.jumps = max(0, self.jumps - 1)
                 return True
 
         if self.jumps:
-            self.velocity[1] = -3
+            self.velocity[1] = -3 * (1.125 if self.game.powered_up else 1.0)  # 1.5x normal jump
             self.jumps -= 1
             self.air_time = 5
 

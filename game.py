@@ -17,6 +17,11 @@ class Game:
     def __init__(self): 
         pygame.init()
 
+        self.powered_up = False
+        self.powered_up_timer = 0
+        self.powered_up_alpha = 0
+        self.power_up_used = False
+
         pygame.display.set_caption('ninja game')
         self.screen = pygame.display.set_mode((960, 720))
         self.display = pygame.Surface((400, 310), pygame.SRCALPHA)
@@ -54,6 +59,8 @@ class Game:
             'projectile' : load_image('projectile.png'),
             'tutorial_text' : load_images('tiles/tutorial_text'),
             'finish_decor' : load_images('tiles/finish_decor'),
+            'powered_up' : Animation(load_images('entities/player/powered_up'),img_dur=6),
+            'title' : load_image('title.png'),
         }
 
         self.clouds = Clouds(self.assets['clouds'], count=16)
@@ -66,13 +73,18 @@ class Game:
 
         self.screenshake = 0 
 
-        self.load_level(6)
+        self.load_level(0)
         self.transition = 0
 
         show_title_screen(self)
 
     def load_level(self, map_id):
         self.tilemap.load('data/maps/' + str(map_id) + '.json')
+
+        self.power_up_used = False  # Reset power-up usage for new level
+        self.powered_up = False
+        self.powered_up_timer = 0
+        self.powered_up_alpha = 0
         
         self.leaf_spawners = []
         for tree in self.tilemap.extract([('grass_decor', 2)], keep=True):
@@ -149,6 +161,39 @@ class Game:
                 if kill:
                     self.enemies.remove(enemy)
 
+                # Update powered up effect
+            if self.powered_up:
+                self.powered_up_timer += 1
+                if self.powered_up_timer <= 60:  # Fade in over 1 second
+                    self.powered_up_alpha = min(255, self.powered_up_alpha + 5)
+                elif self.powered_up_timer >= 1140:  # Start fade out at 19 seconds
+                    self.powered_up_alpha = max(0, self.powered_up_alpha - 5)
+                    if self.powered_up_alpha == 0:
+                        self.powered_up = False
+                        self.powered_up_timer = 0
+
+                if abs(self.player.dashing) < 50:
+                    self.assets['powered_up'].update()
+                    powered_up_img = self.assets['powered_up'].img().copy()
+                    
+                    powered_up_img = pygame.transform.scale(powered_up_img, 
+                        (powered_up_img.get_width() * 1.5, powered_up_img.get_height() * 1.5))
+                    
+                    powered_up_img.set_alpha(self.powered_up_alpha)
+                    
+                    x_offset = 0
+                    if self.player.flip:
+                        if self.player.action == 'run':
+                            x_offset = -3
+                        elif self.player.action == 'idle':
+                            x_offset = 6
+                    
+                    powered_pos = (
+                        self.player.rect().centerx - powered_up_img.get_width() // 2 - render_scroll[0] + x_offset,
+                        self.player.rect().centery - powered_up_img.get_height() // 2 - render_scroll[1] - 15
+                    )
+                    self.display.blit(powered_up_img, powered_pos)
+            
             if not self.dead:
                 self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
                 self.player.render(self.display, offset=render_scroll)
@@ -213,109 +258,12 @@ class Game:
                         self.player.attack()
                     if event.key == pygame.K_p:
                         show_pause_menu(self)
-                    if event.key == pygame.K_g and self.level == 6:  # Check if final level
-                        # Show end game message
-                        title_font = pygame.font.SysFont(None, 64)
-                        credit_font = pygame.font.SysFont(None, 36)
+                    if event.key == pygame.K_r and not self.powered_up and not self.power_up_used:
+                        self.powered_up = True
+                        self.powered_up_timer = 0
+                        self.powered_up_alpha = 0
+                        self.power_up_used = True
                         
-                        # Create text surfaces
-                        thank_you = title_font.render("Thank you for playing", True, (255, 255, 255))
-                        credits = credit_font.render("Game made by Sam", True, (255, 255, 255))
-                        
-                        # Animation for text dropping from top (not as far down)
-                        start_y = -100
-                        end_y = 80  # Reduced from screen.get_height() // 3
-                        credit_y = self.screen.get_height() - 80  # Fixed bottom position
-                        
-                        for i in range(60):  # 1 second animation
-                            # Calculate current text position
-                            current_y = start_y + (end_y - start_y) * (i / 60)
-                            
-                            # Let the game update normally
-                            if not self.dead:
-                                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
-                            for enemy in self.enemies.copy():
-                                kill = enemy.update(self.tilemap, (0, 0))
-                                if kill:
-                                    self.enemies.remove(enemy)
-                            
-                            # Normal game rendering
-                            self.display.fill((0, 0, 0, 0))
-                            self.display_2.blit(self.assets['background'], (0, 0))
-                            self.clouds.update()
-                            self.clouds.render(self.display_2, offset=render_scroll)
-                            self.tilemap.render(self.display, offset=render_scroll)
-                            
-                            for enemy in self.enemies.copy():
-                                enemy.render(self.display, offset=render_scroll)
-                            self.player.render(self.display, offset=render_scroll)
-                            
-                            for particle in self.particles:
-                                particle.render(self.display, offset=render_scroll)
-                            for spark in self.sparks:
-                                spark.render(self.display, offset=render_scroll)
-                            
-                            self.display_2.blit(self.display, (0, 0))
-                            scaled = pygame.transform.scale(self.display_2, self.screen.get_size())
-                            self.screen.blit(scaled, (0, 0))
-                            
-                            # Draw text with drop shadow
-                            shadow_offset = 2
-                            thank_x = (self.screen.get_width() - thank_you.get_width()) // 2
-                            credit_x = (self.screen.get_width() - credits.get_width()) // 2
-                            
-                            # Draw shadows
-                            self.screen.blit(thank_you, (thank_x + shadow_offset, current_y + shadow_offset))
-                            self.screen.blit(credits, (credit_x + shadow_offset, credit_y + shadow_offset))
-                            
-                            # Draw text
-                            self.screen.blit(thank_you, (thank_x, current_y))
-                            self.screen.blit(credits, (credit_x, credit_y))
-                            
-                            pygame.display.flip()
-                            self.clock.tick(60)
-                        
-                        # Keep showing text for 3 seconds while game continues
-                        start_time = pygame.time.get_ticks()
-                        while pygame.time.get_ticks() - start_time < 3000:
-                            # Let the game update normally
-                            if not self.dead:
-                                self.player.update(self.tilemap, (self.movement[1] - self.movement[0], 0))
-                            for enemy in self.enemies.copy():
-                                kill = enemy.update(self.tilemap, (0, 0))
-                                if kill:
-                                    self.enemies.remove(enemy)
-                            
-                            # Normal game rendering
-                            self.display.fill((0, 0, 0, 0))
-                            self.display_2.blit(self.assets['background'], (0, 0))
-                            self.clouds.update()
-                            self.clouds.render(self.display_2, offset=render_scroll)
-                            self.tilemap.render(self.display, offset=render_scroll)
-                            
-                            for enemy in self.enemies.copy():
-                                enemy.render(self.display, offset=render_scroll)
-                            self.player.render(self.display, offset=render_scroll)
-                            
-                            for particle in self.particles:
-                                particle.render(self.display, offset=render_scroll)
-                            for spark in self.sparks:
-                                spark.render(self.display, offset=render_scroll)
-                            
-                            self.display_2.blit(self.display, (0, 0))
-                            scaled = pygame.transform.scale(self.display_2, self.screen.get_size())
-                            self.screen.blit(scaled, (0, 0))
-                            
-                            # Keep showing text at final positions
-                            self.screen.blit(thank_you, (thank_x + shadow_offset, end_y + shadow_offset))
-                            self.screen.blit(credits, (credit_x + shadow_offset, credit_y + shadow_offset))
-                            self.screen.blit(thank_you, (thank_x, end_y))
-                            self.screen.blit(credits, (credit_x, credit_y))
-                            
-                            pygame.display.flip()
-                            self.clock.tick(60)
-
-                        # sync movement to actual keyboard state after unpausing
                         keys = pygame.key.get_pressed()
                         self.movement[0] = bool(keys[pygame.K_LEFT])
                         self.movement[1] = bool(keys[pygame.K_RIGHT])
@@ -333,7 +281,6 @@ class Game:
                                     self.player.vx = 0
                                 except Exception:
                                     pass
-
 
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_LEFT:
